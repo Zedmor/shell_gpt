@@ -2,6 +2,7 @@ from typing import Any, Dict, Generator, List
 
 import typer
 
+from sgpt.colorization import colorize_code
 from ..client import OpenAIClient
 from ..config import cfg
 from ..role import SystemRole
@@ -28,5 +29,8 @@ class Handler:
         for word in self.get_completion(messages=messages, **kwargs):
             typer.secho(word, fg=self.color, bold=True, nl=False)
             full_completion += word
+        typer.echo()
+        colorized_code = colorize_code(full_completion)
+        typer.echo(colorized_code)
         typer.echo()
         return full_completion

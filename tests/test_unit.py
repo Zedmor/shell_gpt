@@ -23,7 +23,7 @@ class TestMain(unittest.TestCase):
         self.temperature = 1.0
         self.top_p = 1.0
         self.response_text = "Paris"
-        self.model = "gpt-3.5-turbo"
+        self.model = "gpt-4"
         self.client = OpenAIClient(self.API_HOST, self.api_key)
 
     @requests_mock.Mocker()
@@ -42,7 +42,7 @@ class TestMain(unittest.TestCase):
         self.assertEqual(result, self.response_text)
         expected_json = {
             "messages": [{"role": "user", "content": self.prompt}],
-            "model": "gpt-3.5-turbo",
+            "model": "gpt-4",
             "temperature": self.temperature,
             "top_p": self.top_p,
         }

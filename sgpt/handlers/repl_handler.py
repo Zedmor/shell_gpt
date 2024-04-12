@@ -1,6 +1,7 @@
 from typing import Any
 
 import typer
+from prompt_toolkit import PromptSession
 from rich import print as rich_print
 from rich.rule import Rule
 
@@ -26,18 +27,16 @@ class ReplHandler(ChatHandler):
             else "Entering shell REPL mode, type [e] to execute commands or press Ctrl+C to exit."
         )
         typer.secho(info_message, fg="yellow")
-
-        if not prompt:
-            prompt = typer.prompt(">>>", prompt_suffix=" ")
-        else:
-            typer.echo(f">>> {prompt}")
+        session = PromptSession()
 
         while True:
-            full_completion = super().handle(prompt, **kwargs)
-            prompt = typer.prompt(">>>", prompt_suffix=" ")
+            prompt = session.prompt(">>>", multiline=True)
+            # prompt = 'test'
             if prompt == "exit()":
                 # This is also useful during tests.
                 raise typer.Exit()
+            full_completion = super().handle(prompt, **kwargs)
+
             if self.role.name == DefaultRoles.SHELL.value:
                 if prompt == "e":
                     typer.echo()

@@ -170,7 +170,7 @@ class SystemRole:
                 expecting=self.expecting,
             )
         else:
-            prompt = f"{request}\n{self.expecting}:"
+            prompt = f"{request}"
 
         return prompt
 

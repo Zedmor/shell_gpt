@@ -4,7 +4,9 @@ from typing import Any, Callable, Dict, Generator, List, Optional
 
 import typer
 from click import BadArgumentUsage
+from requests import HTTPError
 
+from sgpt.colorization import colorize_code
 from ..client import OpenAIClient
 from ..config import cfg
 from ..role import SystemRole
@@ -51,9 +53,19 @@ class ChatSession:
                 old_messages.append(message)
             kwargs["messages"] = old_messages
             response_text = ""
-            for word in func(*args, **kwargs):
-                response_text += word
-                yield word
+            try:
+                for word in func(*args, **kwargs):
+                    response_text += word
+                    yield word
+            except HTTPError as e:
+                if e.response.status_code == 400:
+                    print("Compacting conversation")
+                    kwargs["messages"] = self.compact_messages(func, *args, **kwargs)
+
+                    for word in func(*args, **kwargs):
+                        response_text += word
+                        yield word
+
             old_messages.append({"role": "assistant", "content": response_text})
             self._write(kwargs["messages"], chat_id)
 
@@ -86,6 +98,17 @@ class ChatSession:
         files = self.storage_path.glob("*")
         # Sort files by last modification time in ascending order.
         return sorted(files, key=lambda f: f.stat().st_mtime)
+
+    def compact_messages(self, func, *args, **kwargs):
+        messages = kwargs["messages"]
+        first_quater_of_messages, other_messages = messages[:len(messages) // 2], messages[len(messages) // 2:]
+        prompt = {"role": "system", "content": "Please provide summarization of following conversation so it could be used to compact conversation history for Machine Learning agent"}
+        payload = [prompt] + first_quater_of_messages
+        kwargs["messages"] = payload
+        completion = ''.join((func(*args, **kwargs)))
+        new_messages = [messages[0]] + [{'role': 'system', 'content': completion}] + other_messages
+        return new_messages
+
 
 
 class ChatHandler(Handler):
@@ -147,6 +170,7 @@ class ChatHandler(Handler):
             if message.startswith("user:"):
                 message = "\n".join(message.splitlines()[:-1])
             color = "magenta" if index % 2 == 0 else "green"
+            message = colorize_code(message)
             typer.secho(message, fg=color)
 
     def validate(self) -> None:

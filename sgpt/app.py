@@ -12,7 +12,7 @@ import sys
 import typer
 from click import BadArgumentUsage, MissingParameter
 
-from sgpt.client import OpenAIClient
+from sgpt.client import BedrockClient
 from sgpt.config import cfg
 from sgpt.handlers.chat_handler import ChatHandler
 from sgpt.handlers.default_handler import DefaultHandler
@@ -128,8 +128,7 @@ def main(
 
     if editor:
         prompt = get_edited_prompt()
-
-    client = OpenAIClient(cfg.get("OPENAI_API_HOST"), cfg.get("OPENAI_API_KEY"))
+    client = BedrockClient()
 
     role_class = DefaultRoles.get(shell, code) if not role else SystemRole.get(role)
 
