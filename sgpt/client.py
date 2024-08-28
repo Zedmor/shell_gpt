@@ -122,7 +122,7 @@ class ModifiedBedrock(Bedrock):
         if not stream:
             return
 
-        if provider not in cls.provider_to_output_key_map:
+        if provider not in LLMInputOutputAdapter.provider_to_output_key_map:
             raise ValueError(
                 f"Unknown streaming response output key for provider: {provider}"
                 )
@@ -133,7 +133,7 @@ class ModifiedBedrock(Bedrock):
                 chunk_obj = json.loads(chunk.get("bytes").decode())
                 if provider == "cohere" and (
                         chunk_obj["is_finished"]
-                        or chunk_obj[cls.provider_to_output_key_map[provider]]
+                        or chunk_obj[LLMInputOutputAdapter.provider_to_output_key_map[provider]]
                         == "<EOS_TOKEN>"
                 ):
                     return
