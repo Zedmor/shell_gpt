@@ -102,6 +102,7 @@ class OpenAIClient:
             caching=caching,
             )
 
+
 class ModifiedBedrock(Bedrock):
     def _stream_messages(self,
                          messages: List,
@@ -112,13 +113,42 @@ class ModifiedBedrock(Bedrock):
             messages=messages, stop=stop, run_manager=run_manager, **kwargs
             )
 
+    @classmethod
+    def prepare_output_stream(
+            cls, provider: str, response: Any, stop: Optional[List[str]] = None
+            ) -> Iterator[GenerationChunk]:
+        stream = response.get("body")
+
+        if not stream:
+            return
+
+        if provider not in cls.provider_to_output_key_map:
+            raise ValueError(
+                f"Unknown streaming response output key for provider: {provider}"
+                )
+
+        for event in stream:
+            chunk = event.get("chunk")
+            if chunk:
+                chunk_obj = json.loads(chunk.get("bytes").decode())
+                if provider == "cohere" and (
+                        chunk_obj["is_finished"]
+                        or chunk_obj[cls.provider_to_output_key_map[provider]]
+                        == "<EOS_TOKEN>"
+                ):
+                    return
+
+                # chunk obj format varies with provider
+                if chunk_obj['type'] == 'content_block_delta':
+                    yield GenerationChunk(text=chunk_obj['delta']['text'])
+
     def _prepare_input_and_invoke_stream_messages(
-        self,
-        messages: List,
-        stop: Optional[List[str]] = None,
-        run_manager: Optional[CallbackManagerForLLMRun] = None,
-        **kwargs: Any,
-    ) -> Iterator[GenerationChunk]:
+            self,
+            messages: List,
+            stop: Optional[List[str]] = None,
+            run_manager: Optional[CallbackManagerForLLMRun] = None,
+            **kwargs: Any,
+            ) -> Iterator[GenerationChunk]:
         _model_kwargs = self.model_kwargs or {}
         provider = self._get_provider()
 
@@ -126,7 +156,7 @@ class ModifiedBedrock(Bedrock):
             if provider not in self.provider_stop_sequence_key_name_map:
                 raise ValueError(
                     f"Stop sequence key name for {provider} is not supported."
-                )
+                    )
 
             # stop sequence from _generate() overrides
             # stop sequences in the class attribute
@@ -137,7 +167,9 @@ class ModifiedBedrock(Bedrock):
 
         params = {**_model_kwargs, **kwargs}
         input_body = {"max_tokens": params['max_tokens_to_sample']}
-        input_body['messages'] = [{'role': m['role'], 'content': [{'type': 'text', 'text': m['content']}]} for m in messages]
+        input_body['messages'] = [
+            {'role': m['role'], 'content': [{'type': 'text', 'text': m['content']}]} for m in
+            messages]
         input_body['anthropic_version'] = 'bedrock-2023-05-31'
         body = json.dumps(input_body)
 
@@ -147,17 +179,16 @@ class ModifiedBedrock(Bedrock):
                 modelId=self.model_id,
                 accept="application/json",
                 contentType="application/json",
-            )
+                )
         except Exception as e:
             raise ValueError(f"Error raised by bedrock service: {e}")
 
-        for chunk in LLMInputOutputAdapter.prepare_output_stream(
-            provider, response, stop
-        ):
+        for chunk in self.prepare_output_stream(
+                provider, response, stop
+                ):
             yield chunk
             if run_manager is not None:
                 run_manager.on_llm_new_token(chunk.text, chunk=chunk)
-
 
 
 class BedrockClient(OpenAIClient):
@@ -182,7 +213,9 @@ class BedrockClient(OpenAIClient):
             top_probability: float = 1,
             caching=None
             ) -> Generator[str, None, None]:
-        self.llm.model_kwargs = {"temperature": temperature,
-                                 "top_p": top_probability,
-                                 "max_tokens_to_sample": 4000}
+        self.llm.model_kwargs = {
+            "temperature": temperature,
+            "top_p": top_probability,
+            "max_tokens_to_sample": 4000
+            }
         yield from (item.text for item in self.llm._stream_messages(messages=messages))
